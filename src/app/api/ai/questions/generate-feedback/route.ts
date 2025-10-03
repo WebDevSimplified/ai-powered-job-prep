@@ -1,6 +1,7 @@
 import { db } from "@/drizzle/db"
 import { QuestionTable } from "@/drizzle/schema"
 import { getJobInfoIdTag } from "@/features/jobInfos/dbCache"
+import { updateQuestion } from "@/features/questions/db"
 import { getQuestionIdTag } from "@/features/questions/dbCache"
 import { generateAiQuestionFeedback } from "@/services/ai/questions"
 import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser"
@@ -35,12 +36,37 @@ export async function POST(req: Request) {
     })
   }
 
+  const trimmedAnswer = answer.trim()
+
+  await updateQuestion(questionId, {
+    answer: trimmedAnswer,
+  })
+
   const res = generateAiQuestionFeedback({
     question: question.text,
-    answer,
+    answer: trimmedAnswer,
+    onFinish: async feedback => {
+      const rating = parseFeedbackRating(feedback)
+      await updateQuestion(questionId, {
+        feedback,
+        feedbackRating: rating ?? null,
+      })
+    },
   })
 
   return res.toDataStreamResponse({ sendUsage: false })
+}
+
+function parseFeedbackRating(feedback: string) {
+  const match = feedback.match(/##\s+Feedback\s*\(Rating:\s*(\d{1,2})\/10\)/i)
+  if (match == null) return null
+
+  const rating = Number(match[1])
+  if (Number.isNaN(rating) || rating < 0 || rating > 10) {
+    return null
+  }
+
+  return rating
 }
 
 async function getQuestion(id: string, userId: string) {

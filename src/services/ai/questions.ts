@@ -28,7 +28,7 @@ export function generateAiQuestion({
       [
         { role: "user", content: q.difficulty },
         { role: "assistant", content: q.text },
-      ] satisfies CoreMessage[]
+      ] satisfies CoreMessage[],
   )
 
   return streamText({
@@ -66,9 +66,11 @@ Guidelines:
 export function generateAiQuestionFeedback({
   question,
   answer,
+  onFinish,
 }: {
   question: string
   answer: string
+  onFinish?: (feedback: string) => void | Promise<void>
 }) {
   return streamText({
     model: google("gemini-2.5-flash"),
@@ -104,5 +106,10 @@ Output Format (strictly follow this structure):
 ## Correct Answer
 <The full correct answer as markdown>
 \`\`\``,
+    onFinish: async ({ text }) => {
+      if (onFinish != null) {
+        await onFinish(text)
+      }
+    },
   })
 }
